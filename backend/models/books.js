@@ -6,8 +6,11 @@ const bookSchema = mongoose.Schema({
   imageUrl: { type: String, required: true },
   genre: { type: String, required: true },
   year: { type: Number, required: true },
-  userRating: { type: Number, required: true },
-  id: { type: Number, required: true },
+  grade: { type: Number, required: true },
 });
 
 module.exports = mongoose.model('Book', bookSchema);
+
+
+//ImageURL manque
+//
