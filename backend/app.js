@@ -1,11 +1,14 @@
+// app.js
+
 const express = require('express');
-const cors = require('cors'); // Gestion des CORS
+const cors = require('cors');
 const mongoose = require('mongoose');
 const app = express();
+const path = require('path');
 
 // Import des routes
-const bookRoutes = require('./routes/bookRoutes'); // Routes pour les livres
-const userRoutes = require('./routes/userRoutes'); // Routes pour les utilisateurs
+const bookRoutes = require('./routes/bookRoutes');
+const userRoutes = require('./routes/userRoutes');
 
 // Connexion à MongoDB
 mongoose.connect('mongodb+srv://user:Test11@cluster0.jlzd4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
@@ -16,7 +19,7 @@ mongoose.connect('mongodb+srv://user:Test11@cluster0.jlzd4.mongodb.net/?retryWri
 app.use(express.json());
 
 // Utilisation de CORS
-app.use(cors()); 
+app.use(cors());
 
 // Middleware de logging
 app.use((req, res, next) => {
@@ -33,5 +36,7 @@ app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(500).json({ message: 'Une erreur est survenue ' });
 });
+
+app.use('/images', express.static(path.join(__dirname, 'images')));
 
 module.exports = app;

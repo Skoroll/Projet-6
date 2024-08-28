@@ -35,26 +35,16 @@ export async function getAuthenticatedUser() {
 }
 
 export async function getBooks() {
-  const token = localStorage.getItem('token');
-  console.log('Token:', token);
-
-  if (!token) {
-    console.error('Token manquant');
-    return [];
-  }
-
   try {
     const response = await axios({
       method: 'GET',
       url: `${API_ROUTES.BOOKS}`,
-      headers: {
-        Authorization: `Bearer ${token}`,
-      },
     });
+    // eslint-disable-next-line array-callback-return
     const books = formatBooks(response.data);
     return books;
   } catch (err) {
-    console.error('Error fetching books:', err.message);
+    console.error(err);
     return [];
   }
 }
