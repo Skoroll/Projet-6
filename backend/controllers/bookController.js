@@ -1,9 +1,11 @@
 const Book = require("../models/books");
 const fs = require("fs").promises;
+const sharp = require("sharp");
 
 //---------- Récupère tous les livres de la base de données
 exports.getAllBooks = async (req, res) => {
   try {
+    //Défini la variable "books"  /!\ avec un "s" /!\  comme l'ensemble des livres défini sur la base de donnés
     const books = await Book.find();
     res.json(books);
   } catch (error) {
@@ -21,27 +23,29 @@ exports.createBook = async (req, res) => {
       return res.status(401).json({ message: "User not authenticated" });
     }
 
-    // Parse le livre envoyé dans le corps de la requête
+    // Parse les données du livre
     const bookObject = JSON.parse(req.body.book);
+    console.log("BookObject:", bookObject);
 
-    // Ajoute l'userId actuel au livre
+    // Ajoute l'userId actuel
     bookObject.userId = req.auth.userId;
 
-    // Crée l'URL de l'image si un fichier a été envoyé
-    const imageUrl = req.file
-      ? `${req.protocol}://${req.get("host")}/images/${req.file.filename}`
-      : null;
+    // Crée l'URL de l'image après compression
+    let imageUrl = null;
+    if (req.file) {
+      const outputPath = `images/compressed-${req.file.filename}.webp`;
+      await sharp(req.file.path)
+        .resize(100) // Redimensionne si nécessaire
+        .webp({ quality: 80 }) // Compression WebP
+        .toFile(outputPath);
 
-    // Cherche la note donnée par l'utilisateur actuel dans le tableau des évaluations, s'il existe
-    const userRating = Array.isArray(bookObject.ratings)
-      ? bookObject.ratings.find((rating) => rating.userId === req.auth.userId)
-      : null;
+      imageUrl = `${req.protocol}://${req.get("host")}/${outputPath}`;
 
-    // Si une note est trouvée pour cet utilisateur, assigne la note à 'userGrade'
-    // Sinon, assigne 'null' à 'userGrade' car l'utilisateur n'a pas encore noté le livre
-    const userGrade = userRating ? userRating.grade : null;
+      // Supprime l'image originale non compressée
+      await fs.unlink(req.file.path);
+    }
 
-    // Crée un nouvel objet livre avec les données reçues
+    // Crée un nouvel objet livre
     const book = new Book({
       title: bookObject.title,
       author: bookObject.author,
@@ -53,10 +57,10 @@ exports.createBook = async (req, res) => {
       userId: req.auth.userId,
     });
 
-    // Sauvegarde le nouveau livre dans la base de données
-    const newBook = await book.save();
+    console.log("Book object to save:", book);
 
-    // Retourne une réponse avec le livre créé
+    // Sauvegarde le livre
+    const newBook = await book.save();
     res.status(201).json(newBook);
   } catch (error) {
     console.error("Error during book creation:", error.message);
@@ -67,7 +71,9 @@ exports.createBook = async (req, res) => {
 //---------- Récupère un livre spécifique
 exports.getOneBook = async (req, res) => {
   try {
+    //La variable "book" devient l'entité de Book correspondante à l'id demandée
     const book = await Book.findById(req.params.id);
+    //Si l'id demandée correspondant à un élément dans la base de donnés alors => réponse avec l'id
     if (book) {
       res.json(book);
     } else {
@@ -81,24 +87,36 @@ exports.getOneBook = async (req, res) => {
 //---------- Modifie un livre existant
 exports.modifyBook = async (req, res) => {
   try {
+    // Si un fichier (image) est inclus dans la requête, crée un objet bookObject
+    // avec les nouvelles données du livre, y compris une nouvelle URL d'image
     const bookObject = req.file
       ? {
+          // Récupère les données du livre en parsant le corps de la requête JSON
           ...JSON.parse(req.body.book),
           imageUrl: `${req.protocol}://${req.get("host")}/images/${
             req.file.filename
           }`,
         }
-      : { ...req.body };
+      : // Si aucune image n'est fournie, bookObject est simplement une copie de req.body
+        { ...req.body };
 
+    // Supprime le champ _userId de l'objet bookObject pour empêcher toute modification non autorisée
     delete bookObject._userId;
 
+    // Récupère le livre à modifier dans la base de données en utilisant l'ID passé dans les paramètres de la requête
     const book = await Book.findOne({ _id: req.params.id });
+
+    // Vérifie si l'utilisateur authentifié est bien celui qui a créé le livre
     if (book.userId != req.auth.userId) {
+      // Si l'utilisateur n'est pas autorisé, renvoie une réponse avec le statut 401 (Non autorisé)
       return res.status(401).json({ message: "Not authorized" });
     } else {
+      // Si l'utilisateur est autorisé, met à jour le livre avec les nouvelles données
       await Book.updateOne(
+         // Filtre pour sélectionner le livre à modifier
         { _id: req.params.id },
-        { ...bookObject, _id: req.params.id }
+        // Les nouvelles données du livre à mettre à jour
+        { ...bookObject, _id: req.params.id } 
       );
       res.status(200).json({ message: "Livre modifié!" });
     }
@@ -147,18 +165,13 @@ exports.deleteBook = async (req, res) => {
 
 //---------- Récupère les 3 livres les mieux notés
 exports.getBestRatedBooks = async (req, res) => {
-  console.log("Request received for best rated books");
-
   try {
     // Cherche les livres triés par note moyenne décroissante
     const books = await Book.find()
       .sort({ averageRating: -1 }) // Tri par note décroissante
       .limit(3); // Limite le nombre de résultats à 3
 
-    console.log("Books fetched:", books);
-
     if (!books.length) {
-      console.log("No books found with ratings.");
       return res.status(404).json({ message: "No books found" });
     }
 
@@ -204,7 +217,8 @@ exports.rateBook = async (req, res) => {
       (sum, rating) => sum + rating.grade,
       0
     );
-    book.averageRating = totalRating / book.ratings.length;
+    // Arrondit la moyenne à 2 chiffres après la virgule
+    book.averageRating = Math.round((totalRating / book.ratings.length) * 100) / 100;
 
     // Sauvegarde les changements dans la base de données
     await book.save();
@@ -221,3 +235,4 @@ exports.rateBook = async (req, res) => {
       });
   }
 };
+
