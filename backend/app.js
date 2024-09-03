@@ -5,13 +5,15 @@ const cors = require('cors');
 const mongoose = require('mongoose');
 const app = express();
 const path = require('path');
+const  dotEnv = require('dotenv').config()
+
 
 // Import des routes
 const bookRoutes = require('./routes/bookRoutes');
 const userRoutes = require('./routes/userRoutes');
 
 // Connexion à MongoDB
-mongoose.connect('mongodb+srv://user:Test11@cluster0.jlzd4.mongodb.net/?retryWrites=true&w=majority&appName=Cluster0')
+mongoose.connect(process.env.MONGO_KEY)
   .then(() => console.log('Connexion à MongoDB réussie !'))
   .catch((error) => console.error('Connexion à MongoDB échouée !', error));
 

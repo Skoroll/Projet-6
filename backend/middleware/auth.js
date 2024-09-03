@@ -14,7 +14,7 @@ module.exports = (req, res, next) => {
   }
 
   try {
-    const decodedToken = jwt.verify(token, 'RANDOM_TOKEN_SECRET'); // Le même secret utilisé pour générer le token
+    const decodedToken = jwt.verify(token, process.env.SECRET_KEY); // Le même secret utilisé pour générer le token
     req.auth = { userId: decodedToken.userId }; // Ajouté ici
     console.log('Token valide', decodedToken);
     next(); // Poursuit la requête si le token est valide

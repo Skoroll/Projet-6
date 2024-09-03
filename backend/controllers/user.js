@@ -4,7 +4,7 @@ const jwt = require('jsonwebtoken')
 
 exports.signup = (req, res, next) => {
   //Crypte le mot de passe en faisant 10 tour de boucle
-  bcrypt.hash(req.body.password, 10)
+  bcrypt.hash(req.body.password, process.env.NB_ROUND)
     .then(hash => {
       //Envoi les donnés du nouvel utilisateur sur la BD
       const user = new User({
@@ -38,7 +38,7 @@ exports.login = (req, res, next) => {
                       userId: user._id,
                       token: jwt.sign(
                         { userId: user._id},
-                        'RANDOM_TOKEN_SECRET',
+                        process.env.SECRET_KEY,
                         {expiresIn: '24h'}
                         
                       )
