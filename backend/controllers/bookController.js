@@ -1,6 +1,7 @@
 const Book = require("../models/books");
 const fs = require("fs").promises;
 const sharp = require("sharp");
+const path = require("path");
 
 //---------- Récupère tous les livres de la base de données
 exports.getAllBooks = async (req, res) => {
@@ -35,7 +36,7 @@ exports.createBook = async (req, res) => {
     if (req.file) {
       const outputPath = `images/compressed-${req.file.filename}.webp`;
       await sharp(req.file.path)
-        .resize(100) // Redimensionne si nécessaire
+        .resize(300) // Redimensionne si nécessaire
         .webp({ quality: 80 }) // Compression WebP
         .toFile(outputPath);
 
@@ -84,46 +85,103 @@ exports.getOneBook = async (req, res) => {
   }
 };
 
+
+// Fonction pour ajouter un délai
+const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
+
 //---------- Modifie un livre existant
 exports.modifyBook = async (req, res) => {
   try {
-    // Si un fichier (image) est inclus dans la requête, crée un objet bookObject
-    // avec les nouvelles données du livre, y compris une nouvelle URL d'image
-    const bookObject = req.file
-      ? {
-          // Récupère les données du livre en parsant le corps de la requête JSON
-          ...JSON.parse(req.body.book),
-          imageUrl: `${req.protocol}://${req.get("host")}/images/${
-            req.file.filename
-          }`,
-        }
-      : // Si aucune image n'est fournie, bookObject est simplement une copie de req.body
-        { ...req.body };
+    // Log des données de la requête pour débogage
+    console.log("Requête reçue:", req.body);
+    if (req.file) {
+      console.log("Fichier reçu:", req.file);
+    }
 
-    // Supprime le champ _userId de l'objet bookObject pour empêcher toute modification non autorisée
-    delete bookObject._userId;
-
-    // Récupère le livre à modifier dans la base de données en utilisant l'ID passé dans les paramètres de la requête
+    // Récupère le livre à modifier en utilisant l'ID de la requête
     const book = await Book.findOne({ _id: req.params.id });
 
-    // Vérifie si l'utilisateur authentifié est bien celui qui a créé le livre
+    // Vérifie que l'utilisateur authentifié est bien celui qui a créé le livre
     if (book.userId != req.auth.userId) {
-      // Si l'utilisateur n'est pas autorisé, renvoie une réponse avec le statut 401 (Non autorisé)
       return res.status(401).json({ message: "Not authorized" });
-    } else {
-      // Si l'utilisateur est autorisé, met à jour le livre avec les nouvelles données
-      await Book.updateOne(
-         // Filtre pour sélectionner le livre à modifier
-        { _id: req.params.id },
-        // Les nouvelles données du livre à mettre à jour
-        { ...bookObject, _id: req.params.id } 
-      );
-      res.status(200).json({ message: "Livre modifié!" });
     }
+
+    let bookObject;
+
+    // Si un nouveau fichier (image) est inclus dans la requête
+    if (req.file) {
+      // Récupère le nom du fichier de l'image existante à partir de l'URL
+      const oldFilename = path.basename(book.imageUrl);
+      // Définit le chemin de sortie pour l'image compressée
+      const outputPath = `images/compressed-${req.file.filename}.webp`;
+
+      // Traite et compresse l'image reçue
+      await sharp(req.file.path)
+        .resize(300) // Redimensionne l'image
+        .webp({ quality: 80 }) // Compression WebP
+        .toFile(outputPath);
+
+      // Crée un objet contenant les nouvelles données du livre, avec la nouvelle URL d'image
+      bookObject = {
+        ...JSON.parse(req.body.book),
+        imageUrl: `${req.protocol}://${req.get("host")}/${outputPath}`,
+      };
+
+      // Délai pour s'assurer que le fichier non compressé est complètement disponible pour suppression
+      await delay(1000);
+
+      try {
+        // Supprime l'image originale non compressée
+        await fs.unlink(req.file.path);
+        console.log("Nouvelle image non compressée supprimée :", req.file.path);
+      } catch (error) {
+        console.error("Erreur lors de la suppression de l'image non compressée :", error);
+      }
+
+      // Délai supplémentaire avant de supprimer l'ancienne image
+      await delay(1000);
+
+      // Définit le chemin de l'ancienne image
+      const oldFilePath = `images/${oldFilename}`;
+      try {
+        // Vérifie si le fichier existe avant d'essayer de le supprimer
+        if (await fs.stat(oldFilePath)) {
+          // Supprime l'ancienne image
+          await fs.unlink(oldFilePath);
+          console.log(`Ancienne image supprimée : ${oldFilePath}`);
+        }
+      } catch (error) {
+        // Si le fichier n'existe pas, le logue comme tel
+        if (error.code === "ENOENT") {
+          console.log("L'ancienne image n'existe pas :", oldFilePath);
+        } else {
+          // Logue toute autre erreur lors de la suppression de l'ancienne image
+          console.error("Erreur lors de la suppression de l'ancienne image :", error);
+        }
+      }
+    } else {
+      // Si aucune nouvelle image n'est fournie, utilise les données du livre telles quelles
+      bookObject = { ...req.body };
+    }
+
+    // Supprime le champ _userId pour éviter toute modification non autorisée
+    delete bookObject._userId;
+
+    // Met à jour le livre avec les nouvelles données dans la base de données
+    await Book.updateOne(
+      { _id: req.params.id },
+      { ...bookObject, _id: req.params.id }
+    );
+
+    // Répond avec un message de succès
+    res.status(200).json({ message: "Livre modifié!" });
   } catch (error) {
+    // Logue l'erreur en cas de problème et répond avec un message d'erreur
+    console.error("Erreur survenue:", error);
     res.status(400).json({ error });
   }
 };
+
 
 //---------- Supprime un livre
 exports.deleteBook = async (req, res) => {
@@ -154,12 +212,10 @@ exports.deleteBook = async (req, res) => {
     res.status(200).json({ message: "Livre supprimé !" });
   } catch (error) {
     console.error("Error deleting book:", error.message);
-    res
-      .status(500)
-      .json({
-        message: "Erreur lors de la suppression du livre",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Erreur lors de la suppression du livre",
+      error: error.message,
+    });
   }
 };
 
@@ -178,7 +234,12 @@ exports.getBestRatedBooks = async (req, res) => {
     res.status(200).json(books);
   } catch (error) {
     console.error("Error retrieving best rated books:", error.message);
-    res.status(500).json({ message: 'Failed to retrieve best rated books', error: error.message });
+    res
+      .status(500)
+      .json({
+        message: "Failed to retrieve best rated books",
+        error: error.message,
+      });
   }
 };
 
@@ -188,25 +249,10 @@ exports.rateBook = async (req, res) => {
     const { userId, rating } = req.body;
     const bookId = req.params.id;
 
-    // Vérifie que la note est comprise entre 0 et 5
-    if (rating < 0 || rating > 5) {
-      return res
-        .status(400)
-        .json({ message: "La note doit être comprise entre 0 et 5" });
-    }
-
     // Cherche le livre dans la base de données
     const book = await Book.findById(bookId);
     if (!book) {
       return res.status(404).json({ message: "Livre non trouvé" });
-    }
-
-    // Vérifie si l'utilisateur a déjà noté ce livre
-    const existingRating = book.ratings.find(
-      (rating) => rating.userId === userId
-    );
-    if (existingRating) {
-      return res.status(400).json({ message: "Vous avez déjà noté ce livre" });
     }
 
     // Ajoute la nouvelle note au tableau des évaluations
@@ -218,7 +264,8 @@ exports.rateBook = async (req, res) => {
       0
     );
     // Arrondit la moyenne à 2 chiffres après la virgule
-    book.averageRating = Math.round((totalRating / book.ratings.length) * 100) / 100;
+    book.averageRating =
+      Math.round((totalRating / book.ratings.length) * 100) / 100;
 
     // Sauvegarde les changements dans la base de données
     await book.save();
@@ -227,12 +274,9 @@ exports.rateBook = async (req, res) => {
     res.status(200).json(book);
   } catch (error) {
     console.error("Error rating book:", error.message);
-    res
-      .status(500)
-      .json({
-        message: "Erreur lors de la notation du livre",
-        error: error.message,
-      });
+    res.status(500).json({
+      message: "Erreur lors de la notation du livre",
+      error: error.message,
+    });
   }
 };
-
