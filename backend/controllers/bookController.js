@@ -3,6 +3,35 @@ const fs = require("fs").promises;
 const sharp = require("sharp");
 const path = require("path");
 
+
+const safeUnlink = async (filePath) => {
+  try {
+    await fs.unlink(filePath);
+    console.log(`Successfully deleted ${filePath}`);
+  } catch (error) {
+    if (error.code === "ENOENT") {
+      console.log(`File ${filePath} not found, nothing to delete.`);
+    } else {
+      console.error(`Failed to delete ${filePath}:`, error.message);
+    }
+  }
+};
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 //---------- Récupère tous les livres de la base de données
 exports.getAllBooks = async (req, res) => {
   try {
@@ -43,7 +72,7 @@ exports.createBook = async (req, res) => {
       imageUrl = `${req.protocol}://${req.get("host")}/${outputPath}`;
 
       // Supprime l'image originale non compressée
-      await fs.unlink(req.file.path);
+      await safeUnlink(req.file.path);
     }
 
     // Crée un nouvel objet livre
@@ -132,12 +161,10 @@ exports.modifyBook = async (req, res) => {
 
       try {
         // Supprime l'image originale non compressée
-        await fs.unlink(req.file.path);
-        console.log("Nouvelle image non compressée supprimée :", req.file.path);
-      } catch (error) {
-        console.error("Erreur lors de la suppression de l'image non compressée :", error);
-      }
-
+        await safeUnlink(req.file.path);
+        } catch (error) {
+          console.error(`Failed to delete original image at ${req.file.path}:`, error.message);
+        }
       // Délai supplémentaire avant de supprimer l'ancienne image
       await delay(1000);
 
@@ -147,7 +174,7 @@ exports.modifyBook = async (req, res) => {
         // Vérifie si le fichier existe avant d'essayer de le supprimer
         if (await fs.stat(oldFilePath)) {
           // Supprime l'ancienne image
-          await fs.unlink(oldFilePath);
+          await safeUnlink(oldFilePath);
           console.log(`Ancienne image supprimée : ${oldFilePath}`);
         }
       } catch (error) {
@@ -202,7 +229,7 @@ exports.deleteBook = async (req, res) => {
     // Supprime l'image associée si elle existe
     if (book.imageUrl) {
       const filename = book.imageUrl.split("/images/")[1];
-      await fs.unlink(`images/${filename}`);
+      await safeUnlink(`images/${filename}`);
     }
 
     // Supprime le livre de la base de données
