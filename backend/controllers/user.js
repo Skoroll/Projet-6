@@ -3,20 +3,25 @@ const User = require('../models/user');
 const jwt = require('jsonwebtoken')
 
 exports.signup = (req, res, next) => {
-  //Crypte le mot de passe en faisant 10 tour de boucle
-  bcrypt.hash(req.body.password, process.env.NB_ROUND)
+  bcrypt.hash(req.body.password, parseInt(process.env.NB_ROUND, 10))
     .then(hash => {
-      //Envoi les donnés du nouvel utilisateur sur la BD
       const user = new User({
         email: req.body.email,
         password: hash
       });
       user.save()
         .then(() => res.status(201).json({ message: 'Utilisateur créé !' }))
-        .catch(error => res.status(400).json({ error }));
+        .catch(error => {
+          console.error('Erreur lors de la sauvegarde de l\'utilisateur :', error);
+          res.status(400).json({ error: 'Erreur de création de l\'utilisateur' });
+        });
     })
-    .catch(error => res.status(500).json({ error }));
+    .catch(error => {
+      console.error('Erreur lors du hachage du mot de passe :', error);
+      res.status(500).json({ error: 'Erreur du hachage du mot de passe' });
+    });
 };
+
 
 exports.login = (req, res, next) => {
   //Recherche l'utilateur relatif à l'e-mail envoyé dans le body de la requête
