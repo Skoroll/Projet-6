@@ -12,12 +12,10 @@ exports.signup = (req, res, next) => {
       user.save()
         .then(() => res.status(201).json({ message: 'Utilisateur créé !' }))
         .catch(error => {
-          console.error('Erreur lors de la sauvegarde de l\'utilisateur :', error);
           res.status(400).json({ error: 'Erreur de création de l\'utilisateur' });
         });
     })
     .catch(error => {
-      console.error('Erreur lors du hachage du mot de passe :', error);
       res.status(500).json({ error: 'Erreur du hachage du mot de passe' });
     });
 };
