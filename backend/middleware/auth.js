@@ -14,8 +14,8 @@ module.exports = (req, res, next) => {
   }
 
   try {
-    const decodedToken = jwt.verify(token, process.env.SECRET_KEY); // Le même secret utilisé pour générer le token
-    req.auth = { userId: decodedToken.userId }; // Ajouté ici
+    const decodedToken = jwt.verify(token, process.env.SECRET_KEY); 
+    req.auth = { userId: decodedToken.userId }; 
     console.log('Token valide', decodedToken);
     next(); // Poursuit la requête si le token est valide
   } catch (error) {

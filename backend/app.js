@@ -5,6 +5,8 @@ const app = express();
 const path = require('path');
 const  dotEnv = require('dotenv').config();
 const rateLimit = require('express-rate-limit');
+const helmet = require('helmet');
+
 
 
 // Import des routes
