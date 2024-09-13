@@ -79,7 +79,70 @@ exports.createBook = async (req, res) => {
         } catch (unlinkError) {
           console.error(
             `Erreur lors de la suppression du fichier temporaire : ${unlinkError.message}`
-          );
+          );exports.modifyBook = async (req, res) => {
+            try {
+              const book = await Book.findOne({ _id: req.params.id });
+          
+              let bookObject;
+              if (req.file) {
+                console.log("Début de la compression de l'image:", req.file.path);
+                const oldFilename = path.basename(book.imageUrl);
+                
+                const originalName = req.file.filename.split('.')[0]; // Enlève l'extension
+                const compressedFileName = `compressed-${originalName}-${Date.now()}.webp`; // Ajoute la date
+                const outputPath = path.join(__dirname, "../images", compressedFileName);
+          
+                await sharp(req.file.path)
+                  .resize(250)
+                  .webp({ quality: 80 })
+                  .toFile(outputPath);
+                console.log("Compression terminée. Image sauvegardée:", outputPath);
+          
+                bookObject = {
+                  ...JSON.parse(req.body.book),
+                  imageUrl: `${req.protocol}://${req.get("host")}/images/${compressedFileName}`, // Utilise le nom compressé
+                };
+          
+                await delay(1000);
+                console.log("Tentative de suppression du fichier temporaire:", req.file.path);
+          
+                try {
+                  await fs.unlink(req.file.path);
+                  console.log("Fichier temporaire supprimé");
+                } catch (error) {
+                  console.error("Erreur lors de la suppression du fichier temporaire:", error.message);
+                }
+          
+                await delay(1000);
+          
+                const oldFilePath = `images/${oldFilename}`;
+                console.log("Tentative de suppression de ", oldFilePath);
+          
+                try {
+                  await fs.stat(oldFilePath);
+                  await fs.unlink(oldFilePath);
+                  console.log("Ancienne image supprimée ", oldFilePath);
+                } catch (error) {
+                  if (error.code === "ENOENT") {
+                    console.log("L'ancienne image n'existe pas :", oldFilePath);
+                  } else {
+                    console.error("Erreur lors de la suppression de l'ancienne image :", error.message);
+                  }
+                }
+              } else {
+                bookObject = { ...req.body };
+              }
+          
+              delete bookObject._userId;
+          
+              await Book.updateOne({ _id: req.params.id }, { ...bookObject, _id: req.params.id });
+              res.status(200).json({ message: "Livre modifié!" });
+            } catch (error) {
+              console.error("Erreur lors de la modification du livre:", error.message);
+              res.status(400).json({ error: error.message });
+            }
+          };
+          
         }
       }, 1000); // Délai de 1 seconde avant la suppression
     }

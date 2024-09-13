@@ -3,6 +3,7 @@ const User = require('../models/user');
 const jwt = require('jsonwebtoken')
 
 exports.signup = (req, res, next) => {
+  //Chiffrage du mot de passe, valeur stockée dans .env
   bcrypt.hash(req.body.password, parseInt(process.env.NB_ROUND, 10))
     .then(hash => {
       const user = new User({

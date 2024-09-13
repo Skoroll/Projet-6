@@ -11,11 +11,13 @@ const storage = multer.diskStorage({
     callback(null, 'images');
   },
   filename: (req, file, callback) => {
-    const name = file.originalname.split(' ').join('_');
+    // Retirer l'extension actuelle du nom d'origine
+    const name = file.originalname.split(' ').join('_').split('.')[0]; 
     const extension = MIME_TYPES[file.mimetype];
-    //Laissé comme tel, risque de bug car laisse le nom d'extension basique de l'image.
-   callback(null, name + Date.now() + '.' + extension);
+    
+    // Créer le nouveau nom avec la date et l'extension appropriée
+    callback(null, name + '_' + Date.now() + '.' + extension);
   }
 });
 
-module.exports = multer({storage: storage}).single('image');
+module.exports = multer({ storage: storage }).single('image');

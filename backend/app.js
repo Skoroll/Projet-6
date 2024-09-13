@@ -13,7 +13,7 @@ const helmet = require('helmet');
 const bookRoutes = require('./routes/bookRoutes');
 const userRoutes = require('./routes/userRoutes');
 
-// Connexion à MongoDB
+// Connexion à MongoDB, lien dans .env
 mongoose.connect(process.env.MONGO_KEY)
   .then(() => console.log('Connexion à MongoDB réussie !'))
   .catch((error) => console.error('Connexion à MongoDB échouée !', error));
